@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,9 +20,10 @@ import {
   Send,
   Target,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react'
-import { api, ApiError, Dashboard, Habit, HabitInput, HabitNote } from './api'
+import { Account, api, ApiError, Dashboard, Habit, HabitInput, HabitNote } from './api'
 
 const iconMap = {
   book: BookOpen,
@@ -61,8 +62,9 @@ const emptyHabit: HabitInput = {
   target_days_per_week: 7,
 }
 
-function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
+function LoginScreen({ onAuthenticated }: { onAuthenticated: (account: Account) => void }) {
   const [creatingAccount, setCreatingAccount] = useState(false)
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordVisible, setPasswordVisible] = useState(false)
@@ -74,9 +76,10 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
     setSubmitting(true)
     setError('')
     try {
-      if (creatingAccount) await api.register(email, password)
-      else await api.login(email, password)
-      onAuthenticated()
+      const account = creatingAccount
+        ? await api.register(name, email, password)
+        : await api.login(email, password)
+      onAuthenticated(account)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to sign in')
     } finally {
@@ -98,6 +101,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
           <h2>{creatingAccount ? 'Create your account' : 'Sign in to continue'}</h2>
         </div>
         {error && <div className="error-banner">{error}</div>}
+        {creatingAccount && <label>Name<input type="text" autoComplete="name" autoFocus required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>}
         <label>Email<input type="email" autoComplete="email" autoFocus required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /></label>
         <label>
           Password
@@ -120,6 +124,40 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
         </p>
       </form>
     </main>
+  )
+}
+
+function AccountMenu({ account, onSignOut }: { account: Account; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function closeMenu(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', closeMenu)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeMenu)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
+
+  return (
+    <div className="account-menu" ref={menuRef}>
+      <button className="account-trigger" type="button" title="Account" aria-label="Open account menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <UserRound size={20} />
+      </button>
+      {open && (
+        <div className="account-dropdown">
+          <div className="account-identity"><strong>{account.name}</strong><span>{account.email}</span></div>
+          <button type="button" onClick={onSignOut}><LogOut size={17} /> Sign out</button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -230,6 +268,7 @@ function NotesView({ habits, selectedDate }: { habits: Habit[]; selectedDate: st
 
 function App() {
   const [authenticated, setAuthenticated] = useState(api.hasSession())
+  const [account, setAccount] = useState<Account | null>(api.account())
   const [activeView, setActiveView] = useState<'today' | 'notes'>('today')
   const [selectedDate, setSelectedDate] = useState(isoDate(new Date()))
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
@@ -254,6 +293,20 @@ function App() {
   useEffect(() => {
     if (authenticated) void load()
   }, [authenticated, selectedDate])
+
+  useEffect(() => {
+    if (authenticated && !account) {
+      api.me()
+        .then(setAccount)
+        .catch(() => setAuthenticated(false))
+    }
+  }, [account, authenticated])
+
+  async function signOut() {
+    await api.logout()
+    setAccount(null)
+    setAuthenticated(false)
+  }
 
   async function toggle(habit: Habit) {
     setDashboard((current) =>
@@ -291,7 +344,7 @@ function App() {
   const rate = Math.round((dashboard?.completion_rate ?? 0) * 100)
 
   if (!authenticated) {
-    return <LoginScreen onAuthenticated={() => setAuthenticated(true)} />
+    return <LoginScreen onAuthenticated={(authenticatedAccount) => { setAccount(authenticatedAccount); setAuthenticated(true) }} />
   }
 
   return (
@@ -316,14 +369,12 @@ function App() {
             <h1>{activeView === 'today' ? "Today's Activities" : 'Notes'}</h1>
           </div>
           <div className="topbar-actions">
-            <button className="close-button" onClick={() => void api.logout().then(() => setAuthenticated(false))}>
-              <LogOut size={18} /> Sign out
-            </button>
             {activeView === 'today' && (
               <button className="primary-button" onClick={() => setModalOpen(true)}>
                 <Plus size={18} /> New habit
               </button>
             )}
+            {account && <AccountMenu account={account} onSignOut={() => void signOut()} />}
           </div>
         </header>
 

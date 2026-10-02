@@ -4,13 +4,18 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthCredentials(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
     email: str = Field(min_length=3, max_length=255, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
     password: str = Field(min_length=8, max_length=128)
 
 
-class AuthView(BaseModel):
-    token: str
+class AccountView(BaseModel):
+    name: str
     email: str
+
+
+class AuthView(AccountView):
+    token: str
 
 
 class HabitCreate(BaseModel):

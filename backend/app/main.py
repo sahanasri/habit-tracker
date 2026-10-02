@@ -11,12 +11,15 @@ from sqlalchemy.orm import Session
 from .auth import create_session, get_current_user, hash_password, token_hash, verify_password
 from .database import Base, engine, get_db
 from .models import AuthSession, Habit, HabitCompletion, HabitNote, User
-from .schemas import AuthCredentials, AuthView, DashboardView, HabitCreate, HabitUpdate, HabitView, NoteCreate, NoteView
+from .schemas import AccountView, AuthCredentials, AuthView, DashboardView, HabitCreate, HabitUpdate, HabitView, NoteCreate, NoteView
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    if "name" not in {column["name"] for column in inspect(engine).get_columns("users")}:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(120)"))
     if "user_id" not in {column["name"] for column in inspect(engine).get_columns("habits")}:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE habits ADD COLUMN user_id INTEGER REFERENCES users(id)"))
@@ -74,18 +77,23 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def account_name(user: User) -> str:
+    return user.name or user.email.split("@", 1)[0].replace(".", " ").replace("_", " ").title()
+
+
 @app.post("/api/auth/register", response_model=AuthView, status_code=status.HTTP_201_CREATED)
 def register(payload: AuthCredentials, db: Session = Depends(get_db)) -> AuthView:
     email = payload.email.strip().lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=409, detail="An account with that email already exists")
-    user = User(email=email, password_hash=hash_password(payload.password))
+    name = payload.name.strip() if payload.name else email.split("@", 1)[0].title()
+    user = User(name=name, email=email, password_hash=hash_password(payload.password))
     db.add(user)
     db.commit()
     db.refresh(user)
     db.execute(update(Habit).where(Habit.user_id.is_(None)).values(user_id=user.id))
     db.commit()
-    return AuthView(token=create_session(db, user), email=user.email)
+    return AuthView(token=create_session(db, user), name=account_name(user), email=user.email)
 
 
 @app.post("/api/auth/login", response_model=AuthView)
@@ -93,7 +101,12 @@ def login(payload: AuthCredentials, db: Session = Depends(get_db)) -> AuthView:
     user = db.scalar(select(User).where(User.email == payload.email.strip().lower()))
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    return AuthView(token=create_session(db, user), email=user.email)
+    return AuthView(token=create_session(db, user), name=account_name(user), email=user.email)
+
+
+@app.get("/api/auth/me", response_model=AccountView)
+def current_account(user: User = Depends(get_current_user)) -> AccountView:
+    return AccountView(name=account_name(user), email=user.email)
 
 
 @app.post("/api/auth/logout", status_code=status.HTTP_204_NO_CONTENT)

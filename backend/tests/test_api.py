@@ -22,9 +22,10 @@ def teardown_module():
 
 def auth_headers(client: TestClient, email: str = "student@example.com") -> dict[str, str]:
     response = client.post(
-        "/api/auth/register", json={"email": email, "password": "practice123"}
+        "/api/auth/register", json={"name": "Study User", "email": email, "password": "practice123"}
     )
     assert response.status_code == 201
+    assert response.json()["name"] == "Study User"
     return {"Authorization": f"Bearer {response.json()['token']}"}
 
 
@@ -78,4 +79,10 @@ def test_login_required_and_accounts_are_isolated():
             json={"email": "FIRST@example.com", "password": "practice123"},
         )
         assert login.status_code == 200
+        assert login.json()["name"] == "Study User"
         assert login.json()["email"] == "first@example.com"
+        profile = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {login.json()['token']}"},
+        )
+        assert profile.json() == {"name": "Study User", "email": "first@example.com"}

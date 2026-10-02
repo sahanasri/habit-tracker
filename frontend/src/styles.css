@@ -50,7 +50,16 @@ button:disabled { cursor: wait; opacity: .7; }
 
 .workspace { padding: 48px clamp(28px, 6vw, 88px) 80px; max-width: 1450px; width: 100%; margin: 0 auto; }
 .topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
-.topbar-actions { display: flex; gap: 10px; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.account-menu { position: relative; }
+.account-trigger { width: 44px; height: 44px; border: 1px solid #c8c1b6; background: #fff; color: #315e50; display: grid; place-items: center; }
+.account-trigger:hover, .account-trigger[aria-expanded='true'] { border-color: #315e50; background: #edf3f1; }
+.account-dropdown { position: absolute; z-index: 10; top: calc(100% + 9px); right: 0; width: 260px; border: 1px solid #d7d1c5; background: #fff; box-shadow: 0 16px 40px rgba(31, 40, 35, .16); }
+.account-identity { padding: 18px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid #e3ded5; overflow: hidden; }
+.account-identity strong { color: #27352f; font-size: 14px; }
+.account-identity span { color: #777168; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-dropdown > button { width: 100%; min-height: 44px; padding: 0 18px; border: 0; background: transparent; color: #7d2c19; display: flex; align-items: center; gap: 9px; font-weight: 700; text-align: left; }
+.account-dropdown > button:hover { background: #f7dfd7; }
 .eyebrow { margin: 0 0 7px; color: #7b756a; text-transform: uppercase; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
 h1, h2, h3 { margin: 0; }
 h1 { font-family: 'Newsreader', serif; font-size: clamp(38px, 5vw, 58px); font-weight: 600; line-height: .98; }
@@ -172,9 +181,8 @@ h1 { font-family: 'Newsreader', serif; font-size: clamp(38px, 5vw, 58px); font-w
 
 @media (max-width: 520px) {
   .topbar { align-items: flex-start; }
-  .topbar-actions { flex-direction: column-reverse; }
+  .topbar-actions { flex-direction: row; }
   .topbar .primary-button { width: 44px; padding: 0; font-size: 0; }
-  .topbar .close-button { width: 44px; padding: 0; font-size: 0; }
   .summary-band { grid-template-columns: 1fr; text-align: center; }
   .progress-ring { margin: 0 auto; }
   .note-composer { padding: 22px 18px; }
